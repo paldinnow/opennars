@@ -22,6 +22,8 @@ package nars.core;
 
 import java.io.Serializable;
 import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Deque;
 import java.util.HashMap;
@@ -379,6 +381,7 @@ public class Memory implements Serializable {
         inputPausedUntil = 0;
         
         emotion.set(0.5f, 0.5f);
+        resetStatic();
         
         event.emit(ResetEnd.class);
        
@@ -444,7 +447,7 @@ public class Memory implements Serializable {
 
     //TODO decide if this is necessary
     public void temporalRuleOutputToGraph(Sentence s, Task t) {
-        if(t.sentence.term instanceof Implication && t.sentence.term.getTemporalOrder()==TemporalRules.ORDER_FORWARD) {
+        if(t.sentence.term instanceof Implication && t.sentence.term.getTemporalOrder()!=TemporalRules.ORDER_INVALID && t.sentence.term.getTemporalOrder()!=TemporalRules.ORDER_NONE && t.sentence.term.getTemporalOrder()!=TemporalRules.ORDER_BACKWARD) {
             
             executive.graph.implication.add(s, (CompoundTerm)s.term, t);            
         }
@@ -617,8 +620,25 @@ public class Memory implements Serializable {
      *
      * @param t The addInput task
      */
+    
+    boolean checked=false;
+    boolean isjUnit=false;
+    public static boolean isJUnitTest() {
+        StackTraceElement[] stackTrace = Thread.currentThread().getStackTrace();
+        List<StackTraceElement> list = Arrays.asList(stackTrace);
+        for (StackTraceElement element : list) {
+            if (element.getClassName().startsWith("org.junit.")) {
+                return true;
+            }           
+        }
+        return false;
+    }
+    
     public void inputTask(final AbstractTask t) {
-        
+        if(!checked) {
+            checked=true;
+            isjUnit=isJUnitTest();
+        }
         if (t instanceof Task) {
             Task task = (Task)t;
             Stamp s = task.sentence.stamp;                        
@@ -647,6 +667,9 @@ public class Memory implements Serializable {
         }
         else if (t instanceof Echo) {
             Echo e = (Echo)t;
+            if(!isjUnit) {
+                emit(OUT.class,((Echo) t).signal);
+            }
             emit(e.channel, e.signal);
         }
         else if (t instanceof SetVolume) {            
@@ -1004,6 +1027,90 @@ public class Memory implements Serializable {
         return concepts.sampleNextConcept();
     }
     
+    
+    //there are some inference rules like temporal induction, which violate the semantic dependence
+    //like temporal induction, this applies the Novelty strategy also for this case
+    public class Recording
+    {
+        public Recording(Sentence task, Term belief, long time) {
+            this.task=task;
+            this.belief=belief;
+            this.time=time;
+        }
+        Sentence task; //the sentence of the task
+        Term belief; //the remembered termlink this recording represents
+        public long time; //when it was recorded
+    }
+    
+    public Concept sampleNextConceptNovel(Sentence t) {
+        if(t==null) {
+            return null;
+        }
+        Concept c = concepts.sampleNextConcept();
+        if(c!=null && isNovelInRegardTo(t, c.term)) { //it is novel
+            setNotNovelAnymore(t, c.term); //so remember it that it won't be novel again that fastly and return the concept
+            return c;
+        }
+        return null;
+    }
+    
+    public HashMap<Sentence,Integer> recorded=new HashMap<Sentence,Integer>(); //its not ideal but at least a speedup in case of novel
+    public ArrayList<Recording> records=new ArrayList<Recording>();
+    
+    public void setNotNovelAnymore(Sentence t, Term belief) {
+        
+        if(recorded.containsKey(t)) { //"tasklink-sentence" exists
+            recorded.put(t, recorded.get(t)+1); //so count 1 up for how many tracked "termlinks" it has
+        } else {
+            recorded.put(t, 1); //init counter to 1
+        }
+        
+        records.add(new Recording(t,belief,this.time())); //add the record and init it to current time
+        
+        while(records.size()>Parameters.NOVEL_TASKS_TRACK_SIZE) { //too much records, remove oldest
+            removeRecord(records.get(0));
+        }
+    }
+    
+    public void removeRecord(Recording rec) {
+        records.remove(rec);
+        Sentence key=rec.task;
+        //it is in records so it is at least with number 1 in recorded:
+        Integer val=recorded.get(key);
+        if(val<=1) { //it can be removed entirely because it is only 1 time in the records
+            recorded.remove(key);
+        } else {
+            recorded.put(key, recorded.get(key)-1); //decrement "ref counter"
+        }
+    }
+            
+    
+    
+    public boolean isNovelInRegardTo(Sentence t, Term belief) {
+        if(!recorded.containsKey(t)) {
+            return true;  //it is not contained so it has to be novel
+        }
+        //it is contained, so lets look through records till we find one with t as taskSentence and 
+        ArrayList<Recording> toRemove=new ArrayList<Recording>();
+        for(Recording r : records) {
+            
+            if(r.time+Parameters.NOVELTY_HORIZON<this.time()) { //outdated, can be removed entirely
+                toRemove.add(r);
+            }
+        }
+        for(Recording r : toRemove) { //this way we don't search through records which are outdated
+            removeRecord(r);
+        }
+        for(Recording r : records) {
+            if(r.task==t) { //it is the same task sentence reference (note: ref is important here)
+                if(r.belief.equals(belief)) { //same "termlink" which means novel=false
+                    return false;
+                }
+            }
+        }
+        return true; //we didnt find a recording which wasnt outdated, so it is novel
+    }
+    
     public Timing getTiming() {
         return timing;
     }
@@ -1018,13 +1125,41 @@ public class Memory implements Serializable {
     public final ArrayDeque<Task> stm = new ArrayDeque();
     //public Task stmLast = null;
     
-    public boolean inductionOnSucceedingEvents(final Task newEvent, NAL nal) {
+    public boolean proceedWithTemporalInduction(final Sentence newEvent, final Sentence stmLast, Task controllerTask, NAL nal, boolean SucceedingEventsInduction) {
+        if(SucceedingEventsInduction && !controllerTask.isParticipatingInTemporalInductionOnSucceedingEvents()) { //todo refine, add directbool in task
+            return false;
+        }
+       
+        if (newEvent.isEternal() || !isInputOrTriggeredOperation(controllerTask, nal.memory)) {
+            return false;
+        }
 
-        if(newEvent.budget==null || !newEvent.isParticipatingInTemporalInduction()) { //todo refine, add directbool in task
+        if (equalSubTermsInRespectToImageAndProduct(newEvent.term, stmLast.term)) {
             return false;
         }
         
-        //new one happened and duration is already over, so add as negative task
+        if(newEvent.punctuation!=Symbols.JUDGMENT_MARK || stmLast.punctuation!=Symbols.JUDGMENT_MARK)
+            return false; //temporal inductions for judgements only
+        
+        nal.setTheNewStamp(newEvent.stamp, stmLast.stamp, time());
+        nal.setCurrentTask(controllerTask);
+
+        Sentence previousBelief = stmLast;
+        nal.setCurrentBelief(previousBelief);
+
+        Sentence currentBelief = newEvent;
+
+        //if(newEvent.getPriority()>Parameters.TEMPORAL_INDUCTION_MIN_PRIORITY)
+        TemporalRules.temporalInduction(currentBelief, previousBelief, nal, SucceedingEventsInduction);
+        return false;
+    }
+    
+    public boolean inductionOnSucceedingEvents(final Task newEvent, NAL nal) {
+
+        if(newEvent.budget==null || !newEvent.isParticipatingInTemporalInductionOnSucceedingEvents()) { //todo refine, add directbool in task
+            return false;
+        }
+
         nal.emit(Events.InduceSucceedingEvent.class, newEvent, nal);
                 
 
@@ -1032,28 +1167,11 @@ public class Memory implements Serializable {
             return false;
         }
 
-        for (Task stmLast : stm) {
-
-            if (equalSubTermsInRespectToImageAndProduct(newEvent.sentence.term, stmLast.sentence.term)) {
-                return false;
+        if(Parameters.TEMPORAL_INDUCTION_ON_SUCCEEDING_EVENTS) {
+            for (Task stmLast : stm) {
+                proceedWithTemporalInduction(newEvent.sentence, stmLast.sentence, newEvent, nal, true);
             }
-
-            nal.setTheNewStamp(newEvent.sentence.stamp, stmLast.sentence.stamp, time());
-            nal.setCurrentTask(newEvent);
-
-            Sentence previousBelief = stmLast.sentence;
-            nal.setCurrentBelief(previousBelief);
-            
-            Sentence currentBelief = newEvent.sentence;
-
-            //if(newEvent.getPriority()>Parameters.TEMPORAL_INDUCTION_MIN_PRIORITY)
-            TemporalRules.temporalInduction(currentBelief, previousBelief, nal);
         }
-
-        ////for this heuristic, only use input events & task effects of operations
-        ////if(newEvent.getPriority()>Parameters.TEMPORAL_INDUCTION_MIN_PRIORITY) {
-        //stmLast = newEvent;
-        ////}
         
         while (stm.size()+1 > Parameters.STM_SIZE)
             stm.removeFirst();

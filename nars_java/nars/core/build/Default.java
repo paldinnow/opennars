@@ -14,6 +14,7 @@ import nars.core.Memory.Forgetting;
 import nars.core.Memory.Timing;
 import nars.core.NAR;
 import nars.core.Param;
+import nars.core.Parameters;
 import static nars.core.build.Default.InternalExperienceMode.Full;
 import static nars.core.build.Default.InternalExperienceMode.Minimal;
 import nars.core.control.DefaultAttention;
@@ -30,6 +31,7 @@ import nars.language.Term;
 import nars.operator.Operator;
 import nars.operator.mental.Anticipate;
 import nars.plugin.app.plan.TemporalParticlePlanner;
+import nars.plugin.input.PerceptionAccel;
 import nars.plugin.mental.Abbreviation;
 import nars.plugin.mental.Counting;
 import nars.plugin.mental.FullInternalExperience;
@@ -101,7 +103,7 @@ public class Default extends Build implements ConceptBuilder {
         setNovelTaskBagLevels(100);
 
         
-        param.duration.set(5);
+        param.duration.set(Parameters.DURATION);
         param.conceptForgetDurations.set(2.0);
         param.taskLinkForgetDurations.set(4.0);
         param.termLinkForgetDurations.set(10.0);
@@ -123,7 +125,7 @@ public class Default extends Build implements ConceptBuilder {
 
         param.reliance.set(0.9f);
         
-        param.decisionThreshold.set(0.30);
+        param.decisionThreshold.set(0.10);
     
         //add derivation filters here:
         //param.getDefaultDerivationFilters().add(new BeRational());
@@ -148,6 +150,10 @@ public class Default extends Build implements ConceptBuilder {
         n.addPlugin(new DefaultTextPerception());
         
         n.addPlugin(new RuntimeNARSettings());
+        
+        n.addPlugin(new PerceptionAccel());
+        
+       // n.addPlugin(new TemporalParticlePlanner());
         
         if(pluginPlanner!=null) {
             n.addPlugin(pluginPlanner);

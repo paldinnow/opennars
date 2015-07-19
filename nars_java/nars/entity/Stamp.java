@@ -53,12 +53,12 @@ public class Stamp implements Cloneable {
     /**
      * serial numbers. not to be modified after Stamp constructor has initialized it
      */
-    public final long[] evidentialBase;
+    public long[] evidentialBase;
 
     /**
      * evidentialBase baseLength
      */
-    public final int baseLength;
+    public int baseLength;
 
     /**
      * creation time of the stamp
@@ -232,10 +232,7 @@ public class Stamp implements Cloneable {
             }
             
             Collection<Term> p = parent.get().getChain();
-            if (p instanceof LinkedHashSet)
-                return (LinkedHashSet)p;
-            else
-                return new LinkedHashSet(p);
+            return new LinkedHashSet(p);
         }
         
     }
@@ -691,13 +688,15 @@ public class Stamp implements Cloneable {
                 }
             }
             int i = 0;
-            for (Term t : derivationChain) {
-                buffer.append(t);
-                if (i < (derivationChain.size() - 1)) {
-                    buffer.append(Symbols.STAMP_SEPARATOR);
+            try{
+                for (Term t : derivationChain) {
+                    buffer.append(t);
+                    if (i < (derivationChain.size() - 1)) {
+                        buffer.append(Symbols.STAMP_SEPARATOR);
+                    }
+                    i++;
                 }
-                i++;
-            }
+            } catch(Exception ex) {}
             buffer.append(Symbols.STAMP_CLOSER).append(' ');
 
             //this is for estimating an initial size of the stringbuffer

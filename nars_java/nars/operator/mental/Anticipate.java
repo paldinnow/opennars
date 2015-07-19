@@ -208,11 +208,13 @@ public class Anticipate extends Operator implements EventObserver, Mental {
             return;
         }
         
-        LinkedHashSet<Term> ae = anticipations.get(occurenceTime);
-        if (ae == null) {
-            ae = new LinkedHashSet();
-            anticipations.put(new Vector2Int(memory.time(),occurenceTime), ae);
-        }
+        if(t.sentence.truth.getExpectation()<Parameters.DEFAULT_CONFIRMATION_EXPECTATION) {
+            return;
+        } 
+        
+        LinkedHashSet<Term> ae = new LinkedHashSet();
+        anticipations.put(new Vector2Int(memory.time(),occurenceTime), ae);
+
         ae.add(content);
         
         if(anticipationOperator) {
@@ -241,13 +243,13 @@ public class Anticipate extends Operator implements EventObserver, Mental {
         BudgetValue budget = expiredBudget;
 
         Stamp stamp = new Stamp(nal.memory);
-        stamp.setOccurrenceTime(expectedOccurenceTime-nal.memory.param.duration.get()); //it did not happen, so the time of when it did not 
+        //stamp.setOccurrenceTime(nal.memory.time());
+        stamp.setOccurrenceTime(expectedOccurenceTime); //it did not happen, so the time of when it did not 
         //happen is exactly the time it was expected
-        //todo analyze, why do i need to substract duration here? maybe it is just accuracy thing
         
         Sentence S = new Sentence(aTerm, Symbols.JUDGMENT_MARK, truth, stamp);
         Task task = new Task(S, budget);
-        nal.derivedTask(task, false, true, null, null); 
-        task.setParticipateInTemporalInduction(true);
+        nal.derivedTask(task, false, true, null, null, false); 
+        task.setParticipateInTemporalInductionOnSucceedingEvents(true);
     }
 }

@@ -10,7 +10,7 @@
 (--,<{David} --> (/,taller_than,{Tom},_)>).
 3000
 
-''outputMustContain('<boy --> (/,taller_than,{Tom},_)>. %0.50;0.62%')
+''outputMustContain('<boy --> (/,taller_than,{Tom},_)>. %0.00;0.45%')
 'equivalent, from previous version: outputMustContain('<{Tom} --> (/,taller_than,_,boy)>. %0.50')
 'equivalent, from previous version: outputMustContain('<{Tom} --> (/,taller_than,_,boy)>. %0.50;0.62%')
 

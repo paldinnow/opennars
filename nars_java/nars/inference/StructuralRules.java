@@ -32,6 +32,7 @@ import nars.language.CompoundTerm;
 import nars.language.Conjunction;
 import nars.language.DifferenceExt;
 import nars.language.DifferenceInt;
+import nars.language.Disjunction;
 import nars.language.Equivalence;
 import nars.language.ImageExt;
 import nars.language.ImageInt;
@@ -603,9 +604,13 @@ public final class StructuralRules {
         if (sentence.isQuestion() || sentence.isQuest()) {
             budget = BudgetFunctions.compoundBackward(content, nal);
         } else {  // need to redefine the cases
-            if ((sentence.isJudgment()) == (compoundTask == (compound instanceof Conjunction))) {
-                truth = TruthFunctions.deduction(truth, reliance);
-            } else if (sentence.isGoal()) {
+            
+            //[03:24] <patham9> <a --> b>.     (||,<a --> b>,<x --> y>)?    =>    (||,<a --> b>,<x --> y>).
+            //[03:25] <patham9> <a --> b>.     (||,<a --> b>,<x --> y>).     => dont derive it  "outputMustNotContain(<x --> y>)"
+            //[03:25] <patham9> <a --> b>.     (&&,<a --> b>,<x --> y>)?    =>      dont derive it   "outputMustNotContain( (&&,<a --> b>,<x --> y>))"
+            //[03:25] <patham9> <a --> b>.     (&&,<a --> b>,<x --> y>).   =>    <x --> y>
+            if ((sentence.isJudgment() || sentence.isGoal()) && ((!compoundTask && compound instanceof Disjunction) ||
+                          (compoundTask && compound instanceof Conjunction))) {
                 truth = TruthFunctions.deduction(truth, reliance);
             }else {
                 TruthValue v1, v2;

@@ -37,6 +37,20 @@ public class RuntimeNARSettings implements Plugin {
         n.param.duration.set((int) val);
     }
     
+    public double getDerivationPriorityLeak() {
+        return Parameters.DERIVATION_PRIORITY_LEAK;
+    }
+    public void setDerivationPriorityLeak(double val) {
+        Parameters.DERIVATION_PRIORITY_LEAK=(float) val;
+    }
+    
+    public double getDerivationDurabilityLeak() {
+        return Parameters.DERIVATION_DURABILITY_LEAK;
+    }
+    public void setDerivationDurabilityLeak(double val) {
+        Parameters.DERIVATION_DURABILITY_LEAK=(float) val;
+    }
+    
     public double getTemporalInductionPriority() {
         return Parameters.TEMPORAL_INDUCTION_CHAIN_SAMPLES;
     }
@@ -51,4 +65,24 @@ public class RuntimeNARSettings implements Plugin {
         Parameters.HORIZON=(float) val;
     }
     
+    public boolean isInductionOnSucceedingEvents() {
+        return Parameters.TEMPORAL_INDUCTION_ON_SUCCEEDING_EVENTS;
+    }
+    public void setInductionOnSucceedingEvents(boolean val) {
+        Parameters.TEMPORAL_INDUCTION_ON_SUCCEEDING_EVENTS=val;
+    }
+    
+    public double getInductionChainSamples() {
+        return Parameters.TEMPORAL_INDUCTION_CHAIN_SAMPLES;
+    }
+    public void setInductionChainSamples(double val) {
+        Parameters.TEMPORAL_INDUCTION_CHAIN_SAMPLES=(int) val;
+    }
+    
+    public double getInductionSamples() {
+        return Parameters.TEMPORAL_INDUCTION_SAMPLES;
+    }
+    public void setInductionSamples(double val) {
+        Parameters.TEMPORAL_INDUCTION_SAMPLES=(int) val;
+    }
 }

@@ -27,6 +27,8 @@ package nars.core;
  */
 public class Parameters {
     
+    public static int DURATION = 5;
+    
     /** use this for advanced error checking, at the expense of lower performance.
         it is enabled for unit tests automatically regardless of the value here.    */
     public static boolean DEBUG = false;
@@ -73,7 +75,7 @@ public class Parameters {
 
     /* ---------- default input values ---------- */
     /** Default expectation for confirmation. */
-    public static final float DEFAULT_CONFIRMATION_EXPECTATION = (float) 0.8;
+    public static final float DEFAULT_CONFIRMATION_EXPECTATION = (float) 0.66;
     /** Default expectation for confirmation. */
     public static final float DEFAULT_CREATION_EXPECTATION = (float) 0.66;
     /** Default confidence of input judgment. */
@@ -120,11 +122,14 @@ public class Parameters {
     /** Maximum length of Stamp, a power of 2 */
     //public static final int MAXIMUM_STAMP_LENGTH = 8;
 
-    public static int TEMPORAL_INDUCTION_CHAIN_SAMPLES = 10;
-    
+
 
     /** what this value represents was originally equal to the termlink record length (10), but we may want to adjust it or make it scaled according to duration since it has more to do with time than # of records.  it can probably be increased several times larger since each item should remain in the recording queue for longer than 1 cycle */
     public static final int NOVELTY_HORIZON = 10;
+    
+    public static int NOVEL_TASKS_TRACK_SIZE=1000; //inference rules like temporal induction
+    //work a bit differently, in order for it not to bypass the novelty strategy (because it doesn't use a termlink
+    //for inference, we track the tasks extra for now
 
     /**
      * The rate of confidence decrease in mental operations Doubt and Hesitate
@@ -182,8 +187,15 @@ public class Parameters {
     
     public static int STM_SIZE = 1;
     
+    public static boolean TEMPORAL_INDUCTION_ON_SUCCEEDING_EVENTS=true; //this should be true to restore 1.6.1 strategy
     
+    public static int TEMPORAL_INDUCTION_CHAIN_SAMPLES = 1; //normal inference rule , this should be 10 to restore 1.6.1 behavior
     
+    public static int TEMPORAL_INDUCTION_SAMPLES = 1; //normal inference rule, this should be 0 to restore 1.6.1 strategy
+    
+    public static float DERIVATION_PRIORITY_LEAK=0.4f; //https://groups.google.com/forum/#!topic/open-nars/y0XDrs2dTVs
+    
+    public static float DERIVATION_DURABILITY_LEAK=0.4f; //https://groups.google.com/forum/#!topic/open-nars/y0XDrs2dTVs
     
 }
 

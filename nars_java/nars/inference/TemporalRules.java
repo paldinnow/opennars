@@ -232,11 +232,11 @@ public class TemporalRules {
             Implication whole=Implication.make(S, C,order2);
             
             if(whole!=null) {
-                TruthValue truth = TruthFunctions.deduction(s1.truth, s2.truth);
-                BudgetValue budget = BudgetFunctions.forward(truth, nal);
+                TruthValue truth = TruthFunctions.induction(s1.truth, s2.truth);
+                BudgetValue budget = BudgetFunctions.compoundForward(truth,whole, nal);
                 budget.setPriority((float) Math.min(0.99, budget.getPriority()));
                 
-                return nal.doublePremiseTask(whole, truth, budget, true)!=null;
+                return nal.doublePremiseTask(whole, truth, budget, true, false)!=null;
             }
         }
         return false;
@@ -247,22 +247,7 @@ public class TemporalRules {
         return (t instanceof Inheritance) || (t instanceof Similarity);
     }
     
-    public static void applyExpectationOffset(Memory memory, Term temporalStatement, Stamp stamp) {
-        if(temporalStatement!=null && temporalStatement instanceof Implication) {
-            Implication imp=(Implication) temporalStatement;
-            if(imp.getSubject() instanceof Conjunction && imp.getTemporalOrder()==TemporalRules.ORDER_FORWARD)  {
-                Conjunction conj=(Conjunction) imp.getSubject();
-                if(conj.term[conj.term.length-1] instanceof Interval) {
-                    Interval intv=(Interval) conj.term[conj.term.length-1];
-                    long time_offset=intv.getTime(memory);
-                    stamp.setOccurrenceTime(stamp.getOccurrenceTime()+time_offset);
-                }
-            }
-        }
-    }
-    
-    public static List<Task> temporalInduction(final Sentence s1, final Sentence s2, final nars.core.control.NAL nal) {
-        
+    public static List<Task> temporalInduction(final Sentence s1, final Sentence s2, final nars.core.control.NAL nal, boolean SucceedingEventsInduction) {
         
         if ((s1.truth==null) || (s2.truth==null))
             return Collections.EMPTY_LIST;
@@ -275,17 +260,6 @@ public class TemporalRules {
         
         Term t11=null;
         Term t22=null;
-        
-        //if(t1 instanceof Operation && t2 instanceof Operation) {
-        //   return; //maybe too restrictive
-        //}
-        /*if(((t1 instanceof Implication || t1 instanceof Equivalence) && t1.getTemporalOrder()!=TemporalRules.ORDER_NONE) ||
-           ((t2 instanceof Implication || t2 instanceof Equivalence) && t2.getTemporalOrder()!=TemporalRules.ORDER_NONE)) {
-            return; //better, if this is fullfilled, there would be more than one temporal operator in the statement, return
-        }*/
-        
-        //since induction shouldnt miss something trivial random is not good here
-            ///ex: *Memory.randomNumber.nextDouble()>0.5 &&*/
         
         if (termForTemporalInduction(t1) && termForTemporalInduction(t2)) {
             
@@ -385,54 +359,103 @@ public class TemporalRules {
         int order = order(timeDiff, durationCycles);
         TruthValue givenTruth1 = s1.truth;
         TruthValue givenTruth2 = s2.truth;
+     //   TruthFunctions.
         TruthValue truth1 = TruthFunctions.induction(givenTruth1, givenTruth2);
         TruthValue truth2 = TruthFunctions.induction(givenTruth2, givenTruth1);
         TruthValue truth3 = TruthFunctions.comparison(givenTruth1, givenTruth2);
         BudgetValue budget1 = BudgetFunctions.forward(truth1, nal);
         BudgetValue budget2 = BudgetFunctions.forward(truth2, nal);
         BudgetValue budget3 = BudgetFunctions.forward(truth3, nal);
+        
+        //https://groups.google.com/forum/#!topic/open-nars/0k-TxYqg4Mc
+        if(!SucceedingEventsInduction) { //reduce priority according to temporal distance
+            //it was not "semantically" connected by temporal succession
+            int tt1=(int) s1.getOccurenceTime();
+            int tt2=(int) s1.getOccurenceTime();
+            int d=Math.abs(tt1-tt2)/nal.memory.param.duration.get();
+            if(d!=0) {
+                double mul=1.0/((double)d);
+                budget1.setPriority((float) (budget1.getPriority()*mul));
+                budget2.setPriority((float) (budget2.getPriority()*mul));
+                budget3.setPriority((float) (budget3.getPriority()*mul));
+            }
+        }
+        
         Statement statement1 = Implication.make(t1, t2, order);
         Statement statement2 = Implication.make(t2, t1, reverseOrder(order));
         Statement statement3 = Equivalence.make(t1, t2, order);
         
+        //maybe this way is also the more flexible and intelligent way to introduce variables for the case above
+        //TODO: rethink this for 1.6.3
+        //"Perception Variable Introduction Rule" - https://groups.google.com/forum/#!topic/open-nars/uoJBa8j7ryE
+        if(statement2!=null) { //there is no general form
+            //ok then it may be the (&/ =/> case which 
+            //is discussed here: https://groups.google.com/forum/#!topic/open-nars/uoJBa8j7ryE
+            Statement st=statement2;
+            if(st.getPredicate() instanceof Inheritance && (st.getSubject() instanceof Conjunction || st.getSubject() instanceof Operation)) {
+                Term precon=(Term) st.getSubject();
+                Inheritance consequence=(Inheritance) st.getPredicate();
+                Term pred=consequence.getPredicate();
+                Term sub=consequence.getSubject();
+                //look if subject is contained in precon:
+                boolean SubsSub=precon.containsTermRecursively(sub);
+                boolean SubsPred=precon.containsTermRecursively(pred);
+                Variable v1=new Variable("$91");
+                Variable v2=new Variable("$92");
+                HashMap<Term,Term> app=new HashMap<Term,Term>();
+                if(SubsSub || SubsPred) {
+                    if(SubsSub)
+                        app.put(sub, v1);
+                    if(SubsPred)
+                        app.put(pred,v2);
+                    Term res=((CompoundTerm) statement2).applySubstitute(app);
+                    if(res!=null) { //ok we applied it, all we have to do now is to use it
+                        t22=((Statement)res).getSubject();
+                        t11=((Statement)res).getPredicate();
+                    }
+                }
+             }
+        } 
+        
+       
         List<Task> success=new ArrayList<Task>();
         if(t11!=null && t22!=null) {
             Statement statement11 = Implication.make(t11, t22, order);
             Statement statement22 = Implication.make(t22, t11, reverseOrder(order));
             Statement statement33 = Equivalence.make(t11, t22, order);
             if(!tooMuchTemporalStatements(statement11)) {
-                Task t=nal.doublePremiseTask(statement11, truth1, budget1,true);
+                Task t=nal.doublePremiseTask(statement11, truth1, budget1,true, false);
                 if(t!=null) {
                     success.add(t);
                 }
             }
             if(!tooMuchTemporalStatements(statement22)) {
-               Task t=nal.doublePremiseTask(statement22, truth2, budget2,true);
+               Task t=nal.doublePremiseTask(statement22, truth2, budget2,true, false);
                 if(t!=null) {
                     success.add(t);
                 }
             }
             if(!tooMuchTemporalStatements(statement33)) {
-                Task t=nal.doublePremiseTask(statement33, truth3, budget3,true);
+                Task t=nal.doublePremiseTask(statement33, truth3, budget3,true, false);
                 if(t!=null) {
                     success.add(t);
                 }
             }
         }
         if(!tooMuchTemporalStatements(statement1)) {
-            Task t=nal.doublePremiseTask(statement1, truth1, budget1,true);
+            Task t=nal.doublePremiseTask(statement1, truth1, budget1,true, false);
             if(t!=null) {
                     success.add(t);
                 }
         }
         if(!tooMuchTemporalStatements(statement2)) {
-            Task t=nal.doublePremiseTask(statement2, truth2, budget2,true); //=/> only to  keep graph simple for now
+            Task t=nal.doublePremiseTask(statement2, truth2, budget2,true, false);
                  if(t!=null) {
                     success.add(t);
                 }
             }
         if(!tooMuchTemporalStatements(statement3)) {
-            Task t=nal.doublePremiseTask(statement3, truth3, budget3,true);
+            Task t=nal.doublePremiseTask(statement3, truth3, budget3,true, false);
             if(t!=null) {
                     success.add(t);
                 }
@@ -490,7 +513,7 @@ public class TemporalRules {
         if (judgmentTask) {
             task.incPriority(quality);
         } else {
-            float taskPriority = task.getPriority();
+            float taskPriority = task.getPriority(); //+goal satisfication is a matter of degree - https://groups.google.com/forum/#!topic/open-nars/ZfCM416Dx1M
             budget = new BudgetValue(UtilityFunctions.or(taskPriority, quality), task.getDurability(), BudgetFunctions.truthToQuality(solution.truth));
             task.setPriority(Math.min(1 - quality, taskPriority));
         }

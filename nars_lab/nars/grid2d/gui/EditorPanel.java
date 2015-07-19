@@ -14,6 +14,8 @@ import javax.swing.event.TreeSelectionEvent;
 import javax.swing.event.TreeSelectionListener;
 import javax.swing.tree.DefaultMutableTreeNode;
 import javax.swing.tree.DefaultTreeModel;
+import nars.entity.Concept;
+import nars.entity.TaskLink;
 import nars.grid2d.Cell.Logic;
 import nars.grid2d.Cell.Machine;
 import nars.grid2d.Cell.Material;
@@ -25,6 +27,7 @@ import nars.grid2d.LocalGridObject;
 import nars.grid2d.TestChamber;
 import nars.grid2d.object.Key;
 import nars.grid2d.object.Pizza;
+import nars.io.Symbols;
 import org.parboiled.common.FileUtils;
 import processing.core.PVector;
 
@@ -75,6 +78,26 @@ public class EditorPanel extends JPanel {
         DefaultMutableTreeNode mindSettings = new DefaultMutableTreeNode("Advanced Settings");
         root.add(mindSettings);
         
+        mindSettings.add(new EditorMode("Delete all desires") {
+            @Override
+            public void run() {
+                for(Concept c : s.nar.memory.concepts) {
+                    if(c.desires!=null && !c.desires.isEmpty()) {
+                        c.desires.clear();
+                    }
+                    ArrayList<TaskLink> toDelete=new ArrayList<TaskLink>();
+                    for(TaskLink T : c.taskLinks) {
+                        if(T.targetTask.sentence.punctuation==Symbols.GOAL_MARK) {
+                            toDelete.add(T);
+                        }    
+                    }
+                    for(TaskLink T : toDelete) {
+                        c.taskLinks.take(T);
+                    }
+                }
+            }
+        });
+        
         mindSettings.add(new EditorMode("Allow joy in action") {
             @Override
             public void run() {
@@ -102,6 +125,23 @@ public class EditorPanel extends JPanel {
                 TestChamber.staticInformation=false;
             }
         });
+        
+        
+        mindSettings.add(new EditorMode("Use complex feedback") {
+            @Override
+            public void run() {
+                TestChamber.ComplexFeedback=true;
+            }
+        });
+        
+        mindSettings.add(new EditorMode("Don't use complex feedback") {
+            @Override
+            public void run() {
+                TestChamber.ComplexFeedback=false;
+            }
+        });
+        
+        //ComplexFeedback
         
         
         DefaultMutableTreeNode load = new DefaultMutableTreeNode("Load Scenario");
@@ -202,6 +242,9 @@ public class EditorPanel extends JPanel {
                                                 //s.nar.addInput("<"+c[11]+" --> off>. :|:");
                                             }
                                         }
+                                    } else {
+                                        s.cells.readCells[i][j].machine=null;
+                                        s.cells.writeCells[i][j].machine=null;
                                     }
                                     
                                     s.cells.readCells[i][j].material=Material.values()[Integer.valueOf(c[10])];
@@ -649,7 +692,7 @@ public class EditorPanel extends JPanel {
                 s.nar.addInput("<(&/,<$1 --> [at]>,(^pick,$1)) =/> <$1 --> [hold]>>.");
                 s.nar.addInput("<(^go-to,$1) =/> <$1 --> [at]>>.");
                 s.nar.addInput("<(&/,<$1 --> [at]>,(^activate,$1)) =/> <$1 --> [on]>>.");
-                s.nar.addInput("<(&/,<$1 --> [at]>,(^deactivate,$1)) =/> (--,<$1 --> [on]>)>.");
+                s.nar.addInput("<(&/,<$1 --> [at]>,(^deactivate,$1)) =/> <$1 --> [on]>>. %0.00;0.90%");
                 //s.nar.addInput("(&&,<#1 --> on>,<<#1 --> on> =/> <#2 --> on>>).");
                 //s.nar.addInput("(&&,<#1 --> on>,<<#1 --> on> =/> <#2 --> opened>>).");
             }
